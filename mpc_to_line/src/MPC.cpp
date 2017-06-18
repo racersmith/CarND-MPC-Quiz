@@ -60,6 +60,34 @@ class FG_eval {
     // TODO: Define the cost related the reference state and
     // any anything you think may be beneficial.
 
+    // CTE, Heading and Velocity error
+    for (int t = 0; t < N; t++) {
+      fg[0] += CppAD::pow(vars[cte_start + t], 2);
+      fg[0] += CppAD::pow(vars[epsi_start + t], 2);
+      fg[0] += CppAD::pow(vars[v_start + t] - ref_v, 2);
+    }
+
+    // Minimize use of actuators
+//    for (int t = 0; t < N-1; t++) {
+//      fg[0] += CppAD::pow(vars[delta_start + t], 2);
+//      fg[0] += CppAD::pow(vars[a_start + t], 2);
+//    }
+
+    // Maximize performance
+    for (int t = 0; t < N-1; t++) {
+      AD<double> v2 = CppAD::pow(vars[v_start + t], 2);
+      AD<double> lat_accel = CppAD::pow(v2 / Lf * vars[delta_start + t], 2);
+      AD<double> long_accel= CppAD::pow(vars[a_start + t], 2);
+      fg[0] += lat_accel;
+//      fg[0] += CppAD::pow(v2 / Lf * vars[delta_start + t], 2);
+    }
+
+    // Minimize jerk
+    for (int t = 0; t < N-2; t++) {
+      fg[0] += CppAD::pow(vars[delta_start + t + 1] - vars[delta_start + t], 2);
+      fg[0] += CppAD::pow(vars[a_start + t + 1] - vars[a_start + t], 2);
+    }
+
     //
     // Setup Constraints
     //
@@ -278,7 +306,7 @@ Eigen::VectorXd polyfit(Eigen::VectorXd xvals, Eigen::VectorXd yvals,
 
 int main() {
   MPC mpc;
-  int iters = 50;
+  int iters = 100;
 
   Eigen::VectorXd ptsx(2);
   Eigen::VectorXd ptsy(2);
@@ -314,7 +342,7 @@ int main() {
     std::cout << "Iteration " << i << std::endl;
 
     auto vars = mpc.Solve(state, coeffs);
-
+    // State
     x_vals.push_back(vars[0]);
     y_vals.push_back(vars[1]);
     psi_vals.push_back(vars[2]);
@@ -322,6 +350,7 @@ int main() {
     cte_vals.push_back(vars[4]);
     epsi_vals.push_back(vars[5]);
 
+    // Controls
     delta_vals.push_back(vars[6]);
     a_vals.push_back(vars[7]);
 
@@ -340,15 +369,21 @@ int main() {
   // Plot values
   // NOTE: feel free to play around with this.
   // It's useful for debugging!
-  plt::subplot(3, 1, 1);
+  plt::subplot(5, 1, 1);
   plt::title("CTE");
   plt::plot(cte_vals);
-  plt::subplot(3, 1, 2);
+  plt::subplot(5, 1, 2);
   plt::title("Delta (Radians)");
   plt::plot(delta_vals);
-  plt::subplot(3, 1, 3);
+  plt::subplot(5, 1, 3);
   plt::title("Velocity");
   plt::plot(v_vals);
+  plt::subplot(5, 1, 4);
+  plt::title("a");
+  plt::plot(a_vals);
+  plt::subplot(5,1,5);
+  plt::title("Path");
+  plt::plot(x_vals, y_vals);
 
   plt::show();
 }
